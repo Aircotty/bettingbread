@@ -70,8 +70,15 @@ router.get('/discord', discordAuthLimiter, (req, res, next) => {
 router.get('/discord/callback', (req, res, next) => {
   passport.authenticate('discord', (err, user, info) => {
     if (err) {
-      console.error('Passport Auth Error:', err);
-      return res.redirect(`${process.env.CLIENT_URL}?auth_error=oauth_failed`);
+      console.error('Passport Auth Error Detail:', JSON.stringify(err, null, 2));
+      
+      // Specifically handle rate limit (429) errors to avoid loop
+      if (err.oauthError?.statusCode === 429) {
+        console.warn('--- [AUTH ALERT] DISCORD IS RATE LIMITING THE SERVER (Cloudflare 1015) ---');
+        return res.redirect(`${process.env.CLIENT_URL}?auth_error=rate_limited`);
+      }
+
+      return res.redirect(`${process.env.CLIENT_URL}?auth_error=oauth_failed&msg=${encodeURIComponent(err.message || 'unknown')}`);
     }
     if (!user) {
       console.error('Passport Auth Failed (No user returned, likely bad Client ID/Secret or invalid token exchange). Info:', info);
