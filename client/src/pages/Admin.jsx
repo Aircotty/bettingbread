@@ -12,13 +12,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../lib/api';
 import PriceTicker from '../components/PriceTicker';
 import Footer from '../components/Footer';
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
-  withCredentials: true,
-});
 
 export default function Admin() {
   usePageTitle('Admin Dashboard');
@@ -120,9 +116,8 @@ export default function Admin() {
   
   // MRR Calculation (Estimated)
   const weeklyCount = stats.tiers.find(t => t.tier === 'weekly')?.count || 0;
-  const monthlyCount = stats.tiers.find(t => t.tier === 'monthly')?.count || 0;
-  const yearlyCount = stats.tiers.find(t => t.tier === 'yearly')?.count || 0;
-  const mrr = (weeklyCount * 60) + (monthlyCount * 50) + (yearlyCount * 33); // Normalizing to monthly
+  const monthlyCount = stats.tiers.find(t => t.tier === 'pro_monthly')?.count || 0;
+  const mrr = (weeklyCount * 10 * 4.33) + (monthlyCount * 99); // Normalized via average weeks/month
 
   const handleExport = () => {
     try {

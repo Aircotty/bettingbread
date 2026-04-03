@@ -2,6 +2,9 @@ const express = require('express');
 const { pool } = require('../db/index');
 const { isAuthenticated } = require('../middleware/auth');
 const { revokeRole } = require('../services/discordBot');
+const { z } = require('zod');
+
+const discordIdSchema = z.string().min(17).max(21).regex(/^\d+$/);
 
 const router = express.Router();
 
@@ -14,7 +17,7 @@ const isAdmin = (req, res, next) => {
   return res.status(403).json({ error: 'Access denied - Admin only' });
 };
 
-router.get('/stats', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/stats', isAuthenticated, isAdmin, async (req, res, next) => {
   try {
     const [revenueRes, tiersRes, activityRes] = await Promise.all([
       pool.query('SELECT SUM(amount_total) as total FROM transactions WHERE status = $1', ['complete']),
@@ -39,12 +42,12 @@ router.get('/stats', isAuthenticated, isAdmin, async (req, res) => {
       activity: activityRes.rows
     });
   } catch (err) {
-    throw err; // Caught by global error handler
+    next(err);
   }
 });
 
 
-router.get('/members', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/members', isAuthenticated, isAdmin, async (req, res, next) => {
   try {
     const membersRes = await pool.query(`
       SELECT p.discord_id, p.username, p.avatar, m.tier, m.status, m.expiry_date
@@ -54,13 +57,17 @@ router.get('/members', isAuthenticated, isAdmin, async (req, res) => {
     `);
     res.json(membersRes.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    next(err);
   }
 });
 
-router.post('/members/:discord_id/revoke', isAuthenticated, isAdmin, async (req, res) => {
-  const { discord_id } = req.params;
+router.post('/members/:discord_id/revoke', isAuthenticated, isAdmin, async (req, res, next) => {
+  const validation = discordIdSchema.safeParse(req.params.discord_id);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'Invalid Discord ID format' });
+  }
+  const discord_id = validation.data;
+  
   const client = await pool.connect();
   
   try {
@@ -92,8 +99,7 @@ router.post('/members/:discord_id/revoke', isAuthenticated, isAdmin, async (req,
     
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Revoke error:', err);
-    res.status(500).json({ error: 'Failed to revoke membership.' });
+    next(err);
   } finally {
     client.release();
   }

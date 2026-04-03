@@ -3,22 +3,20 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { pool } = require('../db/index');
 const { isAuthenticated } = require('../middleware/auth');
 const { grantRole, revokeRole } = require('../services/discordBot');
+const { z } = require('zod');
+
+const tierSchema = z.enum(['weekly', 'pro_monthly', 'lifetime']);
 
 const router = express.Router();
 
 // 1. Create Checkout Session
 router.post('/create-checkout', isAuthenticated, async (req, res) => {
-  const { tier } = req.body;
+  const validation = tierSchema.safeParse(req.body.tier);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'Invalid membership tier', details: validation.error.format() });
+  }
+  const tier = validation.data;
   const { discord_id, email } = req.user;
-
-  if (!tier) {
-    return res.status(400).json({ error: 'Membership tier is required' });
-  }
-
-  const validTiers = ['weekly', 'pro_monthly', 'lifetime'];
-  if (!validTiers.includes(tier)) {
-    return res.status(400).json({ error: 'Invalid membership tier' });
-  }
 
   let priceId;
   if (tier === 'weekly') priceId = process.env.STRIPE_PRICE_WEEKLY;

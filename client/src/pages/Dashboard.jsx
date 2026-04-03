@@ -127,12 +127,11 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      window.location.href = '/';
+    if (user?.isAdmin) {
+      navigate('/admin');
       return;
     }
-
+    
     const fetchDashboard = async () => {
       try {
         const { data } = await api.get('/api/dashboard/profile');
@@ -145,7 +144,7 @@ export default function Dashboard() {
       }
     };
     fetchDashboard();
-  }, [user, authLoading]);
+  }, [user]);
 
   const handleUpgrade = async (newTier) => {
     try {

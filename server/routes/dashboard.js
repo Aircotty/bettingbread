@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db/index');
 const { isAuthenticated } = require('../middleware/auth');
 const { grantRole } = require('../services/discordBot');
+const { z } = require('zod');
 
 
 const router = express.Router();
@@ -12,13 +13,16 @@ router.get('/profile', isAuthenticated, async (req, res) => {
     
     // Execute all queries in parallel for better performance
     const [userRes, membershipRes, transactionsRes] = await Promise.all([
-      pool.query('SELECT * FROM profiles WHERE discord_id = $1', [userId]),
       pool.query(
-        'SELECT * FROM memberships WHERE discord_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1',
+        'SELECT discord_id, username, avatar, email, trial_used, created_at FROM profiles WHERE discord_id = $1', 
+        [userId]
+      ),
+      pool.query(
+        'SELECT id, tier, status, expiry_date FROM memberships WHERE discord_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1',
         [userId, 'active']
       ),
       pool.query(
-        'SELECT * FROM transactions WHERE discord_id = $1 ORDER BY created_at DESC LIMIT 10',
+        'SELECT id, amount_total, currency, tier, status, created_at FROM transactions WHERE discord_id = $1 ORDER BY created_at DESC LIMIT 10',
         [userId]
       )
     ]);

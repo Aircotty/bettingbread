@@ -82,7 +82,11 @@ router.get('/discord/callback', (req, res, next) => {
         console.error('Session Login Error:', loginErr);
         return res.redirect(`${process.env.CLIENT_URL}?auth_error=session_failed`);
       }
-      return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+      const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',');
+      const isAdmin = adminIds.includes(user.discord_id);
+      const redirectUrl = isAdmin ? `${process.env.CLIENT_URL}/admin` : `${process.env.CLIENT_URL}/dashboard`;
+      
+      return res.redirect(redirectUrl);
     });
   })(req, res, next);
 });
