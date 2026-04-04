@@ -9,6 +9,28 @@
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
   }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #050804;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #F26419;
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: #2D5426;
+  }
+
+  /* Firefox Support */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #F26419 #050804;
+  }
 }
 
 @layer utilities {
