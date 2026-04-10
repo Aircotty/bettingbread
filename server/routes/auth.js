@@ -64,16 +64,26 @@ passport.use(new DiscordStrategy({
   }
 }));
 
+/**
+ * Discord OAuth Initiation Route.
+ */
 router.get('/discord', discordAuthLimiter, (req, res, next) => {
-  logger.info('Discord login initiated');
+  logger.info('Discord login initiated', { ip: req.ip });
   next();
 }, passport.authenticate('discord'));
+
+/**
+ * Discord OAuth Callback Route.
+ */
 router.get('/discord/callback', (req, res, next) => {
   passport.authenticate('discord', (err, user, info) => {
     if (err) {
-      logger.error('Passport Auth Error Detail', { error: err.message, stack: err.stack });
+      logger.error('Discord Auth Callback Error', { 
+        error: err.message, 
+        stack: err.stack,
+        ip: req.ip 
+      });
       
-      // Specifically handle rate limit (429) errors to avoid loop
       if (err.oauthError?.statusCode === 429) {
         logger.warn('DISCORD IS RATE LIMITING THE SERVER (Cloudflare 1015)');
         return res.redirect(`${process.env.CLIENT_URL}?auth_error=rate_limited`);
@@ -81,30 +91,57 @@ router.get('/discord/callback', (req, res, next) => {
 
       return res.redirect(`${process.env.CLIENT_URL}?auth_error=oauth_failed&msg=${encodeURIComponent(err.message || 'unknown')}`);
     }
+
     if (!user) {
-      logger.error('Passport Auth Failed (No user returned)', { info });
+      logger.warn('Discord Auth Failed: No user profile returned', { info, ip: req.ip });
       return res.redirect(`${process.env.CLIENT_URL}?auth_error=no_user`);
     }
+
     req.logIn(user, (loginErr) => {
       if (loginErr) {
-        logger.error('Session Login Error', { error: loginErr.message, stack: loginErr.stack });
+        logger.error('Session Login Error', { 
+          error: loginErr.message, 
+          stack: loginErr.stack,
+          discord_id: user.discord_id 
+        });
         return res.redirect(`${process.env.CLIENT_URL}?auth_error=session_failed`);
       }
+
       const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',');
       const isAdmin = adminIds.includes(user.discord_id);
-      const redirectUrl = isAdmin ? `${process.env.CLIENT_URL}/admin` : `${process.env.CLIENT_URL}/dashboard`;
       
+      logger.info('User logged in successfully', { 
+        discord_id: user.discord_id, 
+        username: user.username,
+        is_admin: isAdmin,
+        ip: req.ip
+      });
+
+      const redirectUrl = isAdmin ? `${process.env.CLIENT_URL}/admin` : `${process.env.CLIENT_URL}/dashboard`;
       return res.redirect(redirectUrl);
     });
   })(req, res, next);
 });
 
+/**
+ * Logout Route.
+ * Destroys the session and logs the event.
+ */
 router.get('/logout', (req, res) => {
-  req.logout(() => {
+  const discordId = req.user?.discord_id;
+  const username = req.user?.username;
+
+  req.logout((err) => {
+    if (err) {
+      logger.error('Logout Error', { error: err.message, discord_id: discordId });
+    }
+    
     req.session.destroy(() => {
+      logger.info('User logged out', { discord_id: discordId, username });
       res.redirect(process.env.CLIENT_URL);
     });
   });
 });
+
 
 module.exports = router;

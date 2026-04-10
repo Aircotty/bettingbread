@@ -1,6 +1,10 @@
 const winston = require('winston');
 const path = require('path');
 
+/**
+ * Custom log format for structured JSON logging.
+ * Includes timestamp, level, message, and any additional metadata.
+ */
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
@@ -8,6 +12,10 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
+/**
+ * Main logger instance using winston.
+ * Configured with file and console transports.
+ */
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: logFormat,
@@ -29,15 +37,21 @@ const logger = winston.createLogger({
   ],
 });
 
-// If we're not in production then log to the `console` with the format:
-// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+/**
+ * Configure console logging for non-production environments.
+ * Uses colorized simple format for better developer experience.
+ */
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
-      winston.format.simple()
+      winston.format.printf(({ timestamp, level, message, ...meta }) => {
+        const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+        return `[${timestamp}] ${level}: ${message}${metaStr}`;
+      })
     ),
   }));
 }
 
 module.exports = logger;
+

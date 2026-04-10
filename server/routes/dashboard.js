@@ -1,52 +1,56 @@
 const express = require('express');
 const { pool } = require('../db/index');
 const { isAuthenticated } = require('../middleware/auth');
+const { grantRole } = require('../services/discordBot');
 const logger = require('../utils/logger');
-
+const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
 
-router.get('/profile', isAuthenticated, async (req, res) => {
-  try {
-    const userId = req.user.discord_id;
-    
-    // Execute all queries in parallel for better performance
-    const [userRes, membershipRes, transactionsRes] = await Promise.all([
-      pool.query(
-        'SELECT discord_id, username, avatar, email, trial_used, created_at FROM profiles WHERE discord_id = $1', 
-        [userId]
-      ),
-      pool.query(
-        'SELECT id, tier, status, expiry_date FROM memberships WHERE discord_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1',
-        [userId, 'active']
-      ),
-      pool.query(
-        'SELECT id, amount_total, currency, tier, status, created_at FROM transactions WHERE discord_id = $1 ORDER BY created_at DESC LIMIT 10',
-        [userId]
-      )
-    ]);
+/**
+ * GET /api/dashboard/profile
+ * Retrieves user profile, membership status, and transaction history.
+ */
+router.get('/profile', isAuthenticated, asyncHandler(async (req, res) => {
+  const userId = req.user.discord_id;
+  
+  // Execute all queries in parallel for better performance
+  const [userRes, membershipRes, transactionsRes] = await Promise.all([
+    pool.query(
+      'SELECT discord_id, username, avatar, email, trial_used, created_at FROM profiles WHERE discord_id = $1', 
+      [userId]
+    ),
+    pool.query(
+      'SELECT id, tier, status, expiry_date FROM memberships WHERE discord_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1',
+      [userId, 'active']
+    ),
+    pool.query(
+      'SELECT id, amount_total, currency, tier, status, created_at FROM transactions WHERE discord_id = $1 ORDER BY created_at DESC LIMIT 10',
+      [userId]
+    )
+  ]);
 
-    const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',');
-    const isAdmin = adminIds.includes(userId);
+  const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',');
+  const isAdmin = adminIds.includes(userId);
 
-    res.json({
-      user: { ...userRes.rows[0], isAdmin },
-      membership: membershipRes.rows[0] || null,
-      transactions: transactionsRes.rows
-    });
+  logger.info('User fetched profile', { discord_id: userId, is_admin: isAdmin });
 
-  } catch (err) {
-    logger.error('Profile fetch error', { error: err.message, stack: err.stack, discord_id: req.user.discord_id });
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+  res.json({
+    user: { ...userRes.rows[0], isAdmin },
+    membership: membershipRes.rows[0] || null,
+    transactions: transactionsRes.rows
+  });
+}));
 
-// Activate 3-Day Free Trial
-router.post('/trial', isAuthenticated, async (req, res) => {
+/**
+ * POST /api/dashboard/trial
+ * Activates a 3-Day Free Trial for eligible users.
+ */
+router.post('/trial', isAuthenticated, asyncHandler(async (req, res) => {
   const client = await pool.connect();
+  const userId = req.user.discord_id;
+
   try {
-    const userId = req.user.discord_id;
-    
     await client.query('BEGIN');
 
     // 1. Check eligibility
@@ -54,13 +58,15 @@ router.post('/trial', isAuthenticated, async (req, res) => {
     const { rows: membershipRows } = await client.query('SELECT id FROM memberships WHERE discord_id = $1 AND status = $2', [userId, 'active']);
 
     if (profileRows[0]?.trial_used) {
+      logger.warn('User attempted to reuse free trial', { discord_id: userId });
       return res.status(400).json({ error: 'Trial already used' });
     }
     if (membershipRows.length > 0) {
+      logger.warn('User attempted to activate trial while having active membership', { discord_id: userId });
       return res.status(400).json({ error: 'Active membership already exists' });
     }
 
-    // 2. Create trial membership (configurable minutes)
+    // 2. Create trial membership (configurable duration)
     const durationMinutes = parseInt(process.env.TRIAL_DURATION_MINUTES || '5', 10);
     const expiryDate = new Date();
     expiryDate.setMinutes(expiryDate.getMinutes() + durationMinutes);
@@ -85,17 +91,21 @@ router.post('/trial', isAuthenticated, async (req, res) => {
     `, [userId, 'free_trial', 'free_trial', 'User activated a free trial']);
 
     await client.query('COMMIT');
-    logger.info('Free trial activated', { discord_id: userId, expiry_date: expiryDate });
+    
+    logger.info('Free trial successfully activated', { 
+      discord_id: userId, 
+      expiry_date: expiryDate 
+    });
+    
     res.json({ message: 'Free trial activated', expiry_date: expiryDate });
-
 
   } catch (err) {
     await client.query('ROLLBACK');
-    logger.error('Trial Activation Error', { error: err.message, stack: err.stack, discord_id: req.user.discord_id });
-    res.status(500).json({ error: 'Failed to activate trial' });
+    throw err; // Passed to global error handler
   } finally {
     client.release();
   }
-});
+}));
 
-module.exports = router;
+module.exports = router;
+

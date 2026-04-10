@@ -92,7 +92,7 @@ async function grantRole(discordId) {
   const roleId = process.env.DISCORD_ROLE_BREAD_BRO;
 
   if (!guildId || !roleId) {
-    console.error(`Missing Discord Config - Guild: ${guildId}, Role: ${roleId}`);
+    logger.error('Missing Discord Config for Role Grant', { guild_id: guildId, role_id: roleId });
     return;
   }
 
@@ -101,17 +101,21 @@ async function grantRole(discordId) {
 
   try {
     const guild = await client.guilds.fetch(guildId);
-    if (!guild) throw new Error('Guild not found');
+    if (!guild) throw new Error('Target guild not found');
 
     const member = await guild.members.fetch(discordId);
     if (!member) throw new Error('Member not found in guild');
 
     await member.roles.add(roleId);
-    logger.info('Discord role granted', { discord_id: discordId, role_id: roleId, user_tag: member.user.tag });
+    logger.info('Discord role granted successfully', { discord_id: discordId, role_id: roleId, user_tag: member.user.tag });
     
-    // Optional: Send a DM or a welcome message in a channel
   } catch (err) {
-    logger.error('Failed to grant Discord role', { error: err.message, discord_id: discordId, role_id: roleId });
+    logger.error('Failed to grant Discord role', { 
+      error: err.message, 
+      stack: err.stack,
+      discord_id: discordId, 
+      role_id: roleId 
+    });
   }
 }
 
@@ -124,22 +128,28 @@ async function revokeRole(discordId) {
   const roleId = BREAD_BRO_ROLE_ID;
 
   if (!guildId || !roleId) {
-    console.error(`Missing Discord Config for Revoke - Guild: ${guildId}, Role: ${roleId}`);
+    logger.error('Missing Discord Config for Role Revoke', { guild_id: guildId, role_id: roleId });
     return;
   }
 
   try {
     const guild = await client.guilds.fetch(guildId);
-    if (!guild) throw new Error('Guild not found');
+    if (!guild) throw new Error('Target guild not found');
 
     const member = await guild.members.fetch(discordId);
     if (!member) throw new Error('Member not found in guild');
 
     await member.roles.remove(roleId);
-    logger.info('Discord role revoked', { discord_id: discordId, role_id: roleId, user_tag: member.user.tag });
+    logger.info('Discord role revoked successfully', { discord_id: discordId, role_id: roleId, user_tag: member.user.tag });
   } catch (err) {
-    logger.error('Failed to revoke Discord role', { error: err.message, discord_id: discordId, role_id: roleId });
+    logger.error('Failed to revoke Discord role', { 
+      error: err.message, 
+      stack: err.stack,
+      discord_id: discordId, 
+      role_id: roleId 
+    });
   }
 }
+
 
 module.exports = { grantRole, revokeRole };

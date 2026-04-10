@@ -2,13 +2,15 @@ const cron = require('node-cron');
 const { pool } = require('../db/index');
 const { revokeRole } = require('./discordBot');
 
+const logger = require('../utils/logger');
+
 /**
  * Initializes background tasks for membership maintenance.
+ * Checks for expired memberships every minute and revokes Discord roles.
  */
 function initCronJobs() {
   // Run every minute to accurately catch short trial expirations
   cron.schedule('* * * * *', async () => {
-    // console.log('Running background check for expired memberships...');
     try {
       // Find active memberships that have passed their expiry date
       const expiredRes = await pool.query(`
@@ -23,10 +25,12 @@ function initCronJobs() {
         return;
       }
 
+      logger.info(`Found ${expiredRes.rows.length} expired memberships to process`);
+
       for (const row of expiredRes.rows) {
         const { discord_id, tier } = row;
         
-        console.log(`Processing expiry for ${discord_id} (Tier: ${tier})...`);
+        logger.info('Processing membership expiry', { discord_id, tier });
 
         // 1. Revoke Discord Role
         await revokeRole(discord_id);
@@ -44,14 +48,15 @@ function initCronJobs() {
           VALUES ($1, $2, $3, $4)
         `, [discord_id, 'expiration', tier, 'Membership time expired and role automatically revoked']);
 
-        console.log(`Successfully revoked role and expired membership for ${discord_id}`);
+        logger.info('Successfully expired membership and revoked role', { discord_id, tier });
       }
     } catch (err) {
-      console.error('Error in membership expiry cron job:', err);
+      logger.error('Error in membership expiry cron job', { error: err.message, stack: err.stack });
     }
   });
 
-  console.log('Membership expiry cron job initialized (hourly).');
+  logger.info('Membership expiry cron job initialized');
 }
+
 
 module.exports = { initCronJobs };

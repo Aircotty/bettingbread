@@ -65,11 +65,12 @@ ALTER TABLE discord_auth ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   discord_id TEXT NOT NULL REFERENCES profiles(discord_id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('signup', 'free_trial', 'purchase', 'expiration', 'revoked')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('signup', 'login', 'logout', 'free_trial', 'purchase', 'expiration', 'revoked', 'admin_action', 'role_grant', 'role_revoke')),
   tier TEXT,
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
 
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
