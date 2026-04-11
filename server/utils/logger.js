@@ -43,21 +43,22 @@ const logger = winston.createLogger({
   ],
 });
 
-/**
- * Configure console logging for non-production environments.
- * Uses colorized simple format for better developer experience.
- */
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.printf(({ timestamp, level, message, ...meta }) => {
-        const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
-        return `[${timestamp}] ${level}: ${message}${metaStr}`;
-      })
-    ),
-  }));
-}
+// Always log to console in production (for cloud logging like Railway)
+// but use JSON for easier parsing in production log managers.
+const consoleTransport = new winston.transports.Console({
+  format: process.env.NODE_ENV === 'production'
+    ? logFormat
+    : winston.format.combine(
+        winston.format.colorize(),
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+          const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+          return `[${timestamp}] ${level}: ${message}${metaStr}`;
+        })
+      )
+});
+
+logger.add(consoleTransport);
+
 
 module.exports = logger;
 

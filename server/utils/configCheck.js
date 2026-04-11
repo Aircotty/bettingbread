@@ -43,7 +43,21 @@ function validateConfig() {
     }
   } else {
     logger.info('System configuration validated.');
+    
+    // Log redacted overview of critical config for visual confirmation in Railway
+    const redactedConfig = {
+      NODE_ENV: process.env.NODE_ENV,
+      CLIENT_URL: process.env.CLIENT_URL,
+      STRIPE_PK_LOADED: !!process.env.VITE_STRIPE_PUBLISHABLE_KEY,
+      STRIPE_SK_FIRST_CHAR: process.env.STRIPE_SECRET_KEY?.substring(0, 8) + '...',
+      STRIPE_WH_FIRST_CHAR: process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 8) + '...',
+      PRICE_WEEKLY: process.env.STRIPE_PRICE_WEEKLY,
+      PRICE_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY,
+      PRICE_LIFETIME: process.env.STRIPE_PRICE_LIFETIME,
+    };
+    logger.info('Production environment status:', redactedConfig);
   }
+
 }
 
 module.exports = { validateConfig };

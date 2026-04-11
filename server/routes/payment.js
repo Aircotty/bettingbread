@@ -85,23 +85,38 @@ router.post('/create-checkout', isAuthenticated, asyncHandler(async (req, res) =
 
   logger.info('Creating checkout session', { discord_id, tier, email });
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    line_items: [{ price: priceId, quantity: 1 }],
-    mode: tier === 'lifetime' ? 'payment' : 'subscription',
-    success_url: `${process.env.CLIENT_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.CLIENT_URL}/dashboard`,
-    customer_email: email,
-    metadata: { discord_id, tier }
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: tier === 'lifetime' ? 'payment' : 'subscription',
+      success_url: `${process.env.CLIENT_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL}/dashboard`,
+      customer_email: email,
+      metadata: { discord_id, tier }
+    });
 
-  logger.info('Checkout session created', { 
-    discord_id, 
-    tier, 
-    session_id: session.id 
-  });
+    logger.info('Checkout session created', { 
+      discord_id, 
+      tier, 
+      session_id: session.id,
+      url: session.url 
+    });
 
-  res.json({ url: session.url });
+    res.json({ url: session.url });
+  } catch (err) {
+    logger.error('Stripe Checkout Session Creation Failed', { 
+      error: err.message, 
+      stack: err.stack,
+      tier,
+      price_id: priceId,
+      user_id: discord_id,
+      client_url: process.env.CLIENT_URL
+    });
+    // Re-throw to be caught by asyncHandler/errorHandler
+    throw err;
+  }
+
 }));
 
 /**
