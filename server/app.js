@@ -75,7 +75,13 @@ app.post('/api/payment/webhook', express.raw({ type: 'application/json' }), stri
 app.use(helmet());
 app.use(cookieParser(process.env.SESSION_SECRET));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
-app.use(cors({ origin: process.env.CLIENT_URL?.split(','), credentials: true }));
+app.use(cors({
+  origin: [
+    'https://www.bettingbread.com',
+    'https://bettingbread.com'
+  ],
+  credentials: true
+}));
 
 app.use(session({
   store: new PgSession({ pool }),
